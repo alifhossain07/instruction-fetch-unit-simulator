@@ -2,31 +2,287 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Instruction Fetch Unit Simulator</title>
-  <script defer src="script.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .active-box {
+      box-shadow: 0 0 20px 4px #fbbf24, 0 0 8px 2px #818cf8;
+      border-color: #fbbf24 !important;
+      transition: box-shadow 0.4s, border-color 0.4s;
+    }
+    .bus-anim {
+      animation: busFlow 0.6s linear;
+    }
+    @keyframes busFlow {
+      0% { background-position: 0 0; opacity: 0.2; }
+      50% { background-position: 100% 0; opacity: 1; }
+      100% { background-position: 200% 0; opacity: 0.2; }
+    }
+    .bus {
+      background: repeating-linear-gradient(90deg, #22d3ee 0 10px, #0ea5e9 10px 20px);
+      background-size: 40px 100%;
+      opacity: 0.2;
+      transition: opacity 0.2s;
+    }
+    .bus.bus-anim {
+      opacity: 1;
+    }
+    .commentary-highlight {
+      background-color: #374151;
+      border-left: 4px solid #3b82f6;
+    }
+  </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center py-10">
-  <h1 class="text-3xl font-bold mb-6">Instruction Fetch Unit Simulator</h1>
-
-  <!-- Instruction Input -->
-  <div class="w-full max-w-xl p-4 bg-gray-800 rounded mb-6">
-    <h2 class="text-xl font-semibold mb-2">Enter Instructions:</h2>
-    <textarea id="instructionInput" rows="6" class="w-full p-2 text-black rounded" placeholder="e.g.\nLOAD R1, 0x02\nADD R1, R2\nJMP 2\nHALT"></textarea>
-    <button onclick="loadInstructions()" class="mt-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Load Instructions</button>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4">
+  <h1 class="text-3xl font-bold text-center mb-6 text-blue-300">Instruction Fetch Unit Simulator</h1>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mx-auto max-w-7xl">
+    <!-- LEFT SIDE: IFU Visualization -->
+    <div class="bg-gray-800 rounded-lg p-4 shadow-lg">
+      <h2 class="text-xl font-semibold mb-4 text-center text-cyan-300">Visual Simulation</h2>
+      <div class="relative h-96 mb-6 flex items-center justify-center">
+        <!-- PC -->
+        <div id="pc-box" class="absolute left-4 top-1/2 -translate-y-1/2 bg-gray-800 border-4 border-blue-400 rounded-lg p-3 w-32 flex flex-col items-center transition">
+          <img src="https://pplx-res.cloudinary.com/image/private/user_uploads/36585803/xUWLZewPMYhQLHI/image.jpg" alt="PC" class="w-16 h-16 mb-2 rounded shadow-lg border-2 border-blue-300"/>
+          <div class="text-xs text-blue-200 mb-1">Program Counter (PC)</div>
+          <div class="font-mono text-lg" id="pc-value">0x0000</div>
+        </div>
+        <!-- Bus: PC to IMEM -->
+        <div id="bus-pc-imem" class="bus absolute left-36 top-1/2 -translate-y-1/2 h-2 w-40 rounded-full"></div>
+        <!-- IMEM -->
+        <div id="imem-box" class="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 bg-gray-800 border-4 border-cyan-400 rounded-lg p-3 w-48 flex flex-col items-center transition">
+          <div class="text-xs text-cyan-200 mb-1">Instruction Memory (IMEM)</div>
+          <div class="font-mono text-lg" id="imem-value">[0x00]</div>
+        </div>
+        <!-- Bus: IMEM to IR -->
+        <div id="bus-imem-ir" class="bus absolute left-[60%] top-1/2 -translate-y-1/2 h-2 w-32 rounded-full"></div>
+        <!-- IR -->
+        <div id="ir-box" class="absolute right-4 top-1/2 -translate-y-1/2 bg-gray-800 border-4 border-green-400 rounded-lg p-3 w-32 flex flex-col items-center transition">
+          <div class="text-xs text-green-200 mb-1">Instruction Register (IR)</div>
+          <div class="font-mono text-lg" id="ir-value">0x00</div>
+        </div>
+        <!-- PC+4 Adder (visual only) -->
+        <div id="pc-adder" class="absolute left-20 bottom-4 bg-gray-800 border-2 border-pink-400 rounded px-3 py-1 text-pink-300 text-xs">PC + 4</div>
+      </div>
+      <!-- Memory Display -->
+      <div class="bg-gray-700 p-3 rounded-lg mb-4">
+        <div class="mb-2 text-sm text-cyan-200 font-semibold">Instruction Memory:</div>
+        <div id="memory" class="grid grid-cols-8 gap-1"></div>
+      </div>
+      <!-- Controls -->
+      <div class="flex gap-4 justify-center">
+        <button id="stepBtn" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded transition">▶ Step (Full Fetch Cycle)</button>
+        <button id="resetBtn" class="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded transition">↻ Reset</button>
+        <div>
+          <input id="codeInput" type="text" class="w-48 p-2 bg-gray-800 border border-gray-700 rounded font-mono" placeholder="Enter hex instructions (comma separated)" value="3A,4F,00,1C,2B,FF">
+          <small class="text-gray-400 block mt-1">Edit and press Reset or Enter</small>
+        </div>
+      </div>
+    </div>
+    <!-- RIGHT SIDE: Commentary -->
+    <div class="bg-gray-800 rounded-lg p-4 shadow-lg">
+      <h2 class="text-xl font-semibold mb-4 text-center text-green-300">Live Commentary</h2>
+      <!-- Current Stage -->
+      <div class="bg-gray-700 p-3 rounded-lg mb-4">
+        <div class="text-sm text-yellow-200 font-semibold mb-2">Current Stage:</div>
+        <div id="current-stage" class="font-medium text-yellow-100">Ready to begin fetch cycle</div>
+      </div>
+      <!-- Commentary Box -->
+      <div class="commentary-box bg-gray-700 p-4 rounded-lg mb-4 text-sm">
+        <h3 class="font-semibold text-blue-300 mb-2">How the IFU Works (Step-by-Step)</h3>
+        <ol id="step-commentary" class="list-decimal ml-5 space-y-3">
+          <li id="step1" class="p-2">
+            <span class="font-medium">PC → IMEM</span>
+            <ul class="list-disc ml-5 text-gray-300">
+              <li>The PC provides the address of the instruction to the instruction memory.</li>
+            </ul>
+          </li>
+          <li id="step2" class="p-2">
+            <span class="font-medium">IMEM → IR</span>
+            <ul class="list-disc ml-5 text-gray-300">
+              <li>The instruction at that address is fetched and placed into the Instruction Register.</li>
+              <li><span id="comment-instr" class="text-green-300"></span></li>
+            </ul>
+          </li>
+          <li id="step3" class="p-2">
+            <span class="font-medium">PC → PC + 4</span>
+            <ul class="list-disc ml-5 text-gray-300">
+              <li>The PC is incremented by 4 (to point to the next instruction in memory).</li>
+            </ul>
+          </li>
+          <li id="step4" class="p-2">
+            <span class="font-medium">Updated PC is stored</span>
+            <ul class="list-disc ml-5 text-gray-300">
+              <li>This new PC is then used for the next fetch cycle.</li>
+            </ul>
+          </li>
+        </ol>
+      </div>
+      <!-- Execution Log -->
+      <div class="bg-gray-700 p-3 rounded-lg">
+        <div class="text-sm text-cyan-200 font-semibold mb-2">Execution Log:</div>
+        <div id="execution-log" class="text-xs font-mono h-32 overflow-y-auto bg-gray-900 p-2 rounded">
+          System initialized. Ready to fetch first instruction.
+        </div>
+      </div>
+    </div>
   </div>
-
-  <!-- Simulator Display -->
-  <div class="w-full max-w-xl p-4 bg-gray-800 rounded mb-6">
-    <p><strong>Program Counter (PC):</strong> <span id="pc" class="text-yellow-300">0</span></p>
-    <p><strong>Current Instruction:</strong> <span id="currentInstruction" class="text-green-300">None</span></p>
-    <button onclick="nextCycle()" class="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Next Cycle</button>
-  </div>
-
-  <!-- Execution Log -->
-  <div class="w-full max-w-xl p-4 bg-gray-800 rounded">
-    <h2 class="text-xl font-semibold mb-2">Execution Log:</h2>
-    <ul id="log" class="list-disc list-inside text-sm text-gray-300"></ul>
-  </div>
+  <script>
+    class IFUSim {
+      constructor() {
+        this.PC = 0;
+        this.IMEM = Array(256).fill('00');
+        this.IR = '00';
+      }
+      loadMemory(arr) {
+        this.IMEM = Array(256).fill('00');
+        arr.forEach((v,i) => this.IMEM[i] = v);
+      }
+      reset() {
+        this.PC = 0;
+        this.IR = '00';
+      }
+    }
+    const sim = new IFUSim();
+    // DOM elements
+    const pcBox = document.getElementById('pc-box');
+    const imemBox = document.getElementById('imem-box');
+    const irBox = document.getElementById('ir-box');
+    const pcAdder = document.getElementById('pc-adder');
+    const busPCIMEM = document.getElementById('bus-pc-imem');
+    const busIMEMIR = document.getElementById('bus-imem-ir');
+    const pcVal = document.getElementById('pc-value');
+    const imemVal = document.getElementById('imem-value');
+    const irVal = document.getElementById('ir-value');
+    const memoryGrid = document.getElementById('memory');
+    const codeInput = document.getElementById('codeInput');
+    const currentStage = document.getElementById('current-stage');
+    const executionLog = document.getElementById('execution-log');
+    const commentInstr = document.getElementById('comment-instr');
+    // Render memory grid
+    function renderMemory() {
+      memoryGrid.innerHTML = '';
+      for(let i = 0; i < 24; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'p-1 text-center font-mono text-xs border border-gray-700 rounded bg-gray-900';
+        cell.textContent = sim.IMEM[i];
+        if(i === sim.PC) cell.classList.add('bg-yellow-400', 'text-black');
+        memoryGrid.appendChild(cell);
+      }
+    }
+    // Update UI
+    function updateUI() {
+      pcVal.textContent = '0x' + sim.PC.toString(16).padStart(4, '0');
+      imemVal.textContent = `[${sim.IMEM[sim.PC] || '00'}]`;
+      irVal.textContent = '0x' + sim.IR;
+      renderMemory();
+      [pcBox, imemBox, irBox, pcAdder].forEach(b => b.classList.remove('active-box'));
+      [busPCIMEM, busIMEMIR].forEach(b => b.classList.remove('bus-anim'));
+      document.querySelectorAll('#step-commentary li').forEach(li => 
+        li.classList.remove('commentary-highlight'));
+      commentInstr.textContent = "";
+    }
+    // Log message
+    function logMessage(message) {
+      const now = new Date().toLocaleTimeString();
+      executionLog.innerHTML = `[${now}] ${message}<br>` + executionLog.innerHTML;
+    }
+    // Animate fetch phases
+    async function fullFetchCycle() {
+      // Phase 1: PC → IMEM (Send address)
+      currentStage.textContent = "Phase 1: PC → IMEM (Sending address to memory)";
+      document.getElementById('step1').classList.add('commentary-highlight');
+      pcBox.classList.add('active-box');
+      busPCIMEM.classList.add('bus-anim');
+      logMessage(`PC (0x${sim.PC.toString(16).padStart(4,'0')}) sends address to Instruction Memory`);
+      await new Promise(r => setTimeout(r, 800));
+      busPCIMEM.classList.remove('bus-anim');
+      pcBox.classList.remove('active-box');
+      imemBox.classList.add('active-box');
+      await new Promise(r => setTimeout(r, 400));
+      // Phase 2: IMEM → IR (Fetch instruction)
+      document.getElementById('step1').classList.remove('commentary-highlight');
+      document.getElementById('step2').classList.add('commentary-highlight');
+      currentStage.textContent = "Phase 2: IMEM → IR (Fetching instruction)";
+      sim.IR = sim.IMEM[sim.PC];
+      imemVal.textContent = `[${sim.IMEM[sim.PC]}]`;
+      busIMEMIR.classList.add('bus-anim');
+      commentInstr.textContent = `Fetched Instruction: 0x${sim.IR}`;
+      logMessage(`IMEM fetches instruction 0x${sim.IR} at address 0x${sim.PC.toString(16).padStart(4,'0')}`);
+      await new Promise(r => setTimeout(r, 800));
+      busIMEMIR.classList.remove('bus-anim');
+      imemBox.classList.remove('active-box');
+      irBox.classList.add('active-box');
+      irVal.textContent = '0x' + sim.IR;
+      await new Promise(r => setTimeout(r, 400));
+      // Phase 3: PC → PC + 4 (Increment PC)
+      document.getElementById('step2').classList.remove('commentary-highlight');
+      document.getElementById('step3').classList.add('commentary-highlight');
+      currentStage.textContent = "Phase 3: PC → PC + 4 (Incrementing PC for next instruction)";
+      irBox.classList.remove('active-box');
+      pcBox.classList.add('active-box');
+      pcAdder.classList.add('active-box');
+      await new Promise(r => setTimeout(r, 600));
+      const oldPC = sim.PC;
+      sim.PC += 4;
+      if (sim.PC >= sim.IMEM.length) sim.PC = 0; // wrap around for demo
+      pcVal.textContent = '0x' + sim.PC.toString(16).padStart(4, '0');
+      logMessage(`PC incremented from 0x${oldPC.toString(16).padStart(4,'0')} to 0x${sim.PC.toString(16).padStart(4,'0')}`);
+      await new Promise(r => setTimeout(r, 400));
+      // Phase 4: Complete cycle
+      document.getElementById('step3').classList.remove('commentary-highlight');
+      document.getElementById('step4').classList.add('commentary-highlight');
+      currentStage.textContent = "Complete! Ready for next fetch cycle";
+      pcBox.classList.remove('active-box');
+      pcAdder.classList.remove('active-box');
+      logMessage(`Fetch cycle complete! IR contains instruction 0x${sim.IR}, PC ready at 0x${sim.PC.toString(16).padStart(4,'0')}`);
+      await new Promise(r => setTimeout(r, 800));
+      document.getElementById('step4').classList.remove('commentary-highlight');
+      updateUI();
+    }
+    // Load memory from input
+    function loadInputMemory() {
+      const vals = codeInput.value.split(',')
+        .map(s => s.trim().toUpperCase().padStart(2,'0'))
+        .filter(s => /^[0-9A-F]{2}$/.test(s));
+      sim.loadMemory(vals);
+    }
+    // Event listeners
+    document.getElementById('stepBtn').onclick = async () => {
+      document.getElementById('stepBtn').disabled = true;
+      document.getElementById('resetBtn').disabled = true;
+      await fullFetchCycle();
+      document.getElementById('stepBtn').disabled = false;
+      document.getElementById('resetBtn').disabled = false;
+    };
+    document.getElementById('resetBtn').onclick = () => {
+      sim.reset();
+      loadInputMemory();
+      updateUI();
+      currentStage.textContent = "Ready to begin fetch cycle";
+      logMessage("System reset. Ready to fetch first instruction.");
+    };
+    // Update memory as you type or press Enter
+    codeInput.addEventListener('change', () => {
+      sim.reset();
+      loadInputMemory();
+      updateUI();
+      currentStage.textContent = "Ready to begin fetch cycle";
+      logMessage("Memory updated from input. Ready to fetch first instruction.");
+    });
+    codeInput.addEventListener('keydown', e => {
+      if(e.key === 'Enter') {
+        sim.reset();
+        loadInputMemory();
+        updateUI();
+        currentStage.textContent = "Ready to begin fetch cycle";
+        logMessage("Memory updated from input. Ready to fetch first instruction.");
+      }
+    });
+    // Initial load
+    sim.reset();
+    loadInputMemory();
+    updateUI();
+  </script>
 </body>
 </html>
