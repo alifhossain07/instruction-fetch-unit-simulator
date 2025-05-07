@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Instruction Fetch Unit Simulator</title>
+  <script defer src="script.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center py-10">
+  <h1 class="text-3xl font-bold mb-6">Instruction Fetch Unit Simulator</h1>
+
+  <!-- Instruction Input -->
+  <div class="w-full max-w-xl p-4 bg-gray-800 rounded mb-6">
+    <h2 class="text-xl font-semibold mb-2">Enter Instructions:</h2>
+    <textarea id="instructionInput" rows="6" class="w-full p-2 text-black rounded" placeholder="e.g.\nLOAD R1, 0x02\nADD R1, R2\nJMP 2\nHALT"></textarea>
+    <button onclick="loadInstructions()" class="mt-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Load Instructions</button>
+  </div>
+
+  <!-- Simulator Display -->
+  <div class="w-full max-w-xl p-4 bg-gray-800 rounded mb-6">
+    <p><strong>Program Counter (PC):</strong> <span id="pc" class="text-yellow-300">0</span></p>
+    <p><strong>Current Instruction:</strong> <span id="currentInstruction" class="text-green-300">None</span></p>
+    <button onclick="nextCycle()" class="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Next Cycle</button>
+  </div>
+
+  <!-- Execution Log -->
+  <div class="w-full max-w-xl p-4 bg-gray-800 rounded">
+    <h2 class="text-xl font-semibold mb-2">Execution Log:</h2>
+    <ul id="log" class="list-disc list-inside text-sm text-gray-300"></ul>
+  </div>
+</body>
+</html>
